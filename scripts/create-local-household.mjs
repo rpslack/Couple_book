@@ -12,8 +12,8 @@ const rl = readline.createInterface({ input: process.stdin, output, terminal: tr
 process.stdout.write('로컬 전용 공용 비밀번호 (8자 이상): ');
 const password = await new Promise(resolve => rl.question('', resolve)); rl.close(); process.stdout.write('\n');
 if (password.length < 8 || password.length > 256) { console.error('8~256자로 입력해 주세요.'); process.exit(1); }
-const salt = randomBytes(16), hash = pbkdf2Sync(password, salt, 600000, 32, 'sha256');
-const stored = `pbkdf2-sha256$600000$${salt.toString('hex')}$${hash.toString('hex')}`;
+const salt = randomBytes(16), hash = pbkdf2Sync(password, salt, 100000, 32, 'sha256');
+const stored = `pbkdf2-sha256$100000$${salt.toString('hex')}$${hash.toString('hex')}`;
 const sql = `INSERT INTO households (id,name,password_hash) VALUES (1,'우리 가계부','${stored}') ON CONFLICT(id) DO NOTHING; INSERT INTO categories (household_id,type,name,sort_order) SELECT 1, type, name, ordering FROM (SELECT 'expense' type, '식비' name, 1 ordering UNION ALL SELECT 'expense','생활용품',2 UNION ALL SELECT 'expense','주거',3 UNION ALL SELECT 'expense','교통',4 UNION ALL SELECT 'expense','의료',5 UNION ALL SELECT 'expense','문화',6 UNION ALL SELECT 'expense','기타',7 UNION ALL SELECT 'income','급여',1 UNION ALL SELECT 'income','상여',2 UNION ALL SELECT 'income','기타수입',3) WHERE EXISTS (SELECT 1 FROM households WHERE id=1) ON CONFLICT(household_id,type,name) DO NOTHING;`;
 // Wrangler receives only the salted hash, never the plaintext password.
 const command = empty ? sql.slice(0, sql.indexOf(';') + 1) : sql;

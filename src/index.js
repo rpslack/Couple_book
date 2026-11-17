@@ -6,7 +6,7 @@ const digest = async value => hex(await crypto.subtle.digest('SHA-256', enc.enco
 const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
 const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
 async function makePasswordHash(password) {
-  const salt = crypto.getRandomValues(new Uint8Array(16)), iterations = 600000;
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iterations = 100000;
   const bits = pbkdf2Sync(password, salt, iterations, 32, 'sha256');
   return `pbkdf2-sha256$${iterations}$${hex(salt)}$${hex(bits)}`;
 }
