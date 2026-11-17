@@ -1,0 +1,10 @@
+node_modules/
+.wrangler/
+.dev.vars*
+.env*
+# 가계부 원본, 백업 및 개인 기획 노트
+*.csv
+*.tsv
+*백업*.json
+Obsidian/
+통합_점검보고서.md

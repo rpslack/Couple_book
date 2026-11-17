@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "account",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-17",
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "couple-account-book",
+    "database_id": "30286aeb-3cf3-4501-b860-8c34f1ea58f0"
+  }]
+}
+
