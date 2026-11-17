@@ -132,6 +132,12 @@ export default {
         const exists=await db.prepare('SELECT id FROM categories WHERE household_id = ? AND type = ? AND name = ? AND id != ?').bind(auth.household_id,current.type,d.name.trim(),id).first(); if (exists) return json({error:'같은 이름의 카테고리가 이미 있습니다.'},409);
         await db.prepare('UPDATE categories SET name = ?, sort_order = ?, is_active = ? WHERE id = ? AND household_id = ?').bind(d.name.trim(),d.sort_order,d.is_active,id,auth.household_id).run(); return json({ok:true});
       }
+      if (path === '/api/statistics' && request.method === 'GET') {
+        const year = url.searchParams.get('year');
+        if (!year || !/^\d{4}$/.test(year) || year === '0000') return json({error:'올바른 연도가 필요합니다.'},400);
+        const result = await db.prepare("SELECT substr(t.transaction_date,1,7) AS month, t.type, c.id AS category_id, c.name AS category_name, SUM(t.amount) AS total, COUNT(*) AS count FROM transactions t JOIN categories c ON c.id=t.category_id AND c.household_id=t.household_id WHERE t.household_id=? AND t.transaction_date >= ? AND t.transaction_date <= ? GROUP BY month,t.type,c.id,c.name ORDER BY month,t.type,c.name,c.id").bind(auth.household_id,year+'-01-01',year+'-12-31').all();
+        return json({year,groups:result.results});
+      }
       if (path === '/api/transactions' && request.method === 'GET') {
         const date = url.searchParams.get('date'); if (!date || !validDate(date)) return json({error:'올바른 날짜가 필요합니다.'},400);
         const result = await db.prepare('SELECT t.id, t.type, t.amount, t.transaction_date, t.memo, t.subject, t.payment_method, t.version, c.id AS category_id, c.name AS category_name FROM transactions t JOIN categories c ON c.id = t.category_id WHERE t.household_id = ? AND t.transaction_date = ? ORDER BY t.id DESC').bind(auth.household_id,date).all(); return json({transactions:result.results});
