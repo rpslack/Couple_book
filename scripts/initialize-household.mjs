@@ -16,9 +16,9 @@ if (!process.stdin.isTTY) { console.error('대화형 터미널에서 실행해 �
 const out=new Writable({write(_chunk,_encoding,callback){callback()}});
 const rl=readline.createInterface({input:process.stdin,output:out,terminal:true});
 async function ask(label){process.stdout.write(label);const value=await new Promise(resolve=>rl.question('',resolve));process.stdout.write('\n');return value}
-const password=await ask(`${remote?'원격':'로컬'} 가계부의 새 공용 비밀번호 (12~256자): `);
+const password=await ask(`${remote?'원격':'로컬'} 가계부의 새 공용 비밀번호 (8~256자): `);
 const confirmation=await ask('새 비밀번호 확인: ');rl.close();
-if(password.length<12||password.length>256||password!==confirmation){console.error('비밀번호 길이나 확인 입력이 올바르지 않습니다.');process.exit(1)}
+if(password.length<8||password.length>256||password!==confirmation){console.error('비밀번호 길이나 확인 입력이 올바르지 않습니다.');process.exit(1)}
 const salt=randomBytes(16), hash=pbkdf2Sync(password,salt,600000,32,'sha256');
 const stored=`pbkdf2-sha256$600000$${salt.toString('hex')}$${hash.toString('hex')}`;
 // A single conditional insert prevents overwriting an existing household, even under concurrent initializations.

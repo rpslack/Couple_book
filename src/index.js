@@ -86,7 +86,7 @@ export default {
       const auth = await session(request, db); if (!auth) return json({error:'로그인이 필요합니다.'},401);
       if (path === '/api/password' && request.method === 'POST') {
         const d=await body(request);
-        if (typeof d.current_password !== 'string' || d.current_password.length > 256 || typeof d.new_password !== 'string' || d.new_password.length < 12 || d.new_password.length > 256 || d.new_password === d.current_password) return json({error:'새 비밀번호는 현재 비밀번호와 다른 12~256자여야 합니다.'},400);
+        if (typeof d.current_password !== 'string' || d.current_password.length > 256 || typeof d.new_password !== 'string' || d.new_password.length < 8 || d.new_password.length > 256 || d.new_password === d.current_password) return json({error:'새 비밀번호는 현재 비밀번호와 다른 8~256자여야 합니다.'},400);
         const now=Date.now(), windowStart=Math.floor(now / 60000)*60000;
         const limit=await db.prepare('INSERT INTO login_attempts (window_start, attempts) VALUES (?, 1) ON CONFLICT(window_start) DO UPDATE SET attempts = attempts + 1 RETURNING attempts').bind(windowStart).first();
         if (limit.attempts > 10) return json({error:'잠시 후 다시 시도해 주세요.'},429,{'Retry-After':String(Math.ceil((windowStart+60000-now)/1000))});
