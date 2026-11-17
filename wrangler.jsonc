@@ -8,6 +8,13 @@
     "binding": "DB",
     "database_name": "couple-account-book",
     "database_id": "30286aeb-3cf3-4501-b860-8c34f1ea58f0"
-  }]
+  }],
+  "previews": {
+    "d1_databases": [{
+      "binding": "DB",
+      "database_name": "couple-book-preview",
+      "database_id": "23071942-757f-44e0-b195-119153178fd4"
+    }]
+  }
 }
 
