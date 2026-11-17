@@ -1,4 +1,5 @@
 import { validateBackup } from './backup.js';
+import { pbkdf2Sync } from 'node:crypto';
 const enc = new TextEncoder();
 const hex = bytes => Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('');
 const digest = async value => hex(await crypto.subtle.digest('SHA-256', enc.encode(value)));
@@ -6,15 +7,13 @@ const json = (data, status = 200, headers = {}) => Response.json(data, { status,
 const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
 async function makePasswordHash(password) {
   const salt = crypto.getRandomValues(new Uint8Array(16)), iterations = 600000;
-  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations},key,256);
+  const bits = pbkdf2Sync(password, salt, iterations, 32, 'sha256');
   return `pbkdf2-sha256$${iterations}$${hex(salt)}$${hex(bits)}`;
 }
 async function verifyPassword(password, stored) {
   const [algorithm, iterations, salt, expected] = stored.split('$');
   if (algorithm !== 'pbkdf2-sha256' || !/^\d+$/.test(iterations) || !/^[0-9a-f]{32}$/.test(salt) || !/^[0-9a-f]{64}$/.test(expected) || Number(iterations) < 100000 || Number(iterations) > 2000000) return false;
-  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
-  const actual = hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: Uint8Array.from(salt.match(/../g), x => parseInt(x, 16)), iterations: Number(iterations) }, key, 256));
+  const actual = hex(pbkdf2Sync(password, Uint8Array.from(salt.match(/../g), x => parseInt(x, 16)), Number(iterations), 32, 'sha256'));
   let diff = 0; for (let i = 0; i < expected.length; i++) diff |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
   return diff === 0;
 }
