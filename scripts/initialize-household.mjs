@@ -19,8 +19,8 @@ async function ask(label){process.stdout.write(label);const value=await new Prom
 const password=await ask(`${remote?'원격':'로컬'} 가계부의 새 공용 비밀번호 (8~256자): `);
 const confirmation=await ask('새 비밀번호 확인: ');rl.close();
 if(password.length<8||password.length>256||password!==confirmation){console.error('비밀번호 길이나 확인 입력이 올바르지 않습니다.');process.exit(1)}
-const salt=randomBytes(16), hash=pbkdf2Sync(password,salt,600000,32,'sha256');
-const stored=`pbkdf2-sha256$600000$${salt.toString('hex')}$${hash.toString('hex')}`;
+const salt=randomBytes(16), hash=pbkdf2Sync(password,salt,100000,32,'sha256');
+const stored=`pbkdf2-sha256$100000$${salt.toString('hex')}$${hash.toString('hex')}`;
 // A single conditional insert prevents overwriting an existing household, even under concurrent initializations.
 const sql=`INSERT INTO households (id,name,password_hash) SELECT 1,'우리 가계부','${stored}' WHERE NOT EXISTS (SELECT 1 FROM households) RETURNING id;`;
 const wrangler=fileURLToPath(new URL('../node_modules/wrangler/bin/wrangler.js',import.meta.url));
