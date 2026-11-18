@@ -12,7 +12,7 @@ export function validateBackup(backup) {
   let income=0,expense=0;
   for (const t of backup.transactions) {
     const c=categories.get(t.category_id);
-    if (!isId(t.id) || transactions.has(t.id) || !c || c.type!==t.type || !Number.isSafeInteger(t.amount) || t.amount<=0 || !validDate(t.transaction_date) || !text(t.memo,1000) || !text(t.subject,100,true) || !text(t.payment_method,100,true) || !text(t.recorded_by,1000,true) || !text(t.source_file,1000,true) || !text(t.source_row,1000,true) || !isId(t.version) || !text(t.created_at,100) || !text(t.updated_at,100)) fail('잘못된 거래 또는 카테고리 연결이 있습니다.');
+    if (!isId(t.id) || transactions.has(t.id) || !c || c.type!==t.type || !Number.isSafeInteger(t.amount) || t.amount<=0 || !validDate(t.transaction_date) || !text(t.memo,1000) || !text(t.subject,100,true) || !text(t.recorded_by,1000,true) || !text(t.source_file,1000,true) || !text(t.source_row,1000,true) || !isId(t.version) || !text(t.created_at,100) || !text(t.updated_at,100)) fail('잘못된 거래 또는 카테고리 연결이 있습니다.');
     transactions.add(t.id); if(t.type==='income')income+=t.amount; else expense+=t.amount;
     if (!Number.isSafeInteger(income) || !Number.isSafeInteger(expense)) fail('합계가 안전한 정수 범위를 벗어났습니다.');
   }
