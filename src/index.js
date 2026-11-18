@@ -104,7 +104,7 @@ export default {
           await db.batch([
             db.prepare('INSERT INTO restore_guard(value) SELECT CASE WHEN EXISTS(SELECT 1 FROM categories WHERE household_id = ?) OR EXISTS(SELECT 1 FROM transactions WHERE household_id = ?) THEN 0 ELSE 1 END').bind(auth.household_id,auth.household_id),
             db.prepare("INSERT INTO categories (household_id,type,name,sort_order,is_active) SELECT ?, json_extract(value,'$.type'), json_extract(value,'$.name'), json_extract(value,'$.sort_order'), json_extract(value,'$.is_active') FROM json_each(?, '$.categories')").bind(auth.household_id,raw),
-            db.prepare("INSERT INTO transactions (household_id,category_id,type,amount,transaction_date,memo,subject,payment_method,recorded_by,source_file,source_row,version,created_at,updated_at) SELECT ?, c.id, json_extract(t.value,'$.type'), json_extract(t.value,'$.amount'), json_extract(t.value,'$.transaction_date'), json_extract(t.value,'$.memo'), json_extract(t.value,'$.subject'), json_extract(t.value,'$.payment_method'), json_extract(t.value,'$.recorded_by'), json_extract(t.value,'$.source_file'), json_extract(t.value,'$.source_row'), json_extract(t.value,'$.version'), json_extract(t.value,'$.created_at'), json_extract(t.value,'$.updated_at') FROM json_each(?, '$.transactions') t JOIN json_each(?, '$.categories') b ON json_extract(b.value,'$.id') = json_extract(t.value,'$.category_id') JOIN categories c ON c.household_id = ? AND c.type = json_extract(b.value,'$.type') AND c.name = json_extract(b.value,'$.name')").bind(auth.household_id,raw,raw,auth.household_id),
+            db.prepare("INSERT INTO transactions (household_id,category_id,type,amount,transaction_date,memo,subject,recorded_by,source_file,source_row,version,created_at,updated_at) SELECT ?, c.id, json_extract(t.value,'$.type'), json_extract(t.value,'$.amount'), json_extract(t.value,'$.transaction_date'), json_extract(t.value,'$.memo'), json_extract(t.value,'$.subject'), json_extract(t.value,'$.recorded_by'), json_extract(t.value,'$.source_file'), json_extract(t.value,'$.source_row'), json_extract(t.value,'$.version'), json_extract(t.value,'$.created_at'), json_extract(t.value,'$.updated_at') FROM json_each(?, '$.transactions') t JOIN json_each(?, '$.categories') b ON json_extract(b.value,'$.id') = json_extract(t.value,'$.category_id') JOIN categories c ON c.household_id = ? AND c.type = json_extract(b.value,'$.type') AND c.name = json_extract(b.value,'$.name')").bind(auth.household_id,raw,raw,auth.household_id),
             db.prepare('DELETE FROM restore_guard')
           ]);
         } catch(e) { if (String(e).includes('CHECK constraint failed: value = 1')) return json({error:'복원은 카테고리와 거래가 모두 없는 가계부에서만 가능합니다.'},409); throw e; }
@@ -113,7 +113,7 @@ export default {
       if (path === '/api/backup' && request.method === 'GET') {
         const [categories,transactions] = await db.batch([
           db.prepare('SELECT id,type,name,sort_order,is_active FROM categories WHERE household_id = ? ORDER BY id').bind(auth.household_id),
-          db.prepare('SELECT id,category_id,type,amount,transaction_date,memo,subject,payment_method,recorded_by,source_file,source_row,version,created_at,updated_at FROM transactions WHERE household_id = ? ORDER BY id').bind(auth.household_id)
+          db.prepare('SELECT id,category_id,type,amount,transaction_date,memo,subject,recorded_by,source_file,source_row,version,created_at,updated_at FROM transactions WHERE household_id = ? ORDER BY id').bind(auth.household_id)
         ]);
         return json({format:'couple-account-book',version:1,exported_at:new Date().toISOString(),categories:categories.results,transactions:transactions.results},200,{'Content-Disposition':'attachment; filename="account-book-backup.json"'});
       }
@@ -132,15 +132,19 @@ export default {
         const exists=await db.prepare('SELECT id FROM categories WHERE household_id = ? AND type = ? AND name = ? AND id != ?').bind(auth.household_id,current.type,d.name.trim(),id).first(); if (exists) return json({error:'같은 이름의 카테고리가 이미 있습니다.'},409);
         await db.prepare('UPDATE categories SET name = ?, sort_order = ?, is_active = ? WHERE id = ? AND household_id = ?').bind(d.name.trim(),d.sort_order,d.is_active,id,auth.household_id).run(); return json({ok:true});
       }
+      if (path === '/api/statistics/years' && request.method === 'GET') {
+        const result=await db.prepare("SELECT DISTINCT substr(transaction_date,1,4) AS year FROM transactions WHERE household_id = ? ORDER BY year DESC").bind(auth.household_id).all();
+        return json({years:result.results.map(row=>row.year)});
+      }
       if (path === '/api/statistics' && request.method === 'GET') {
         const year = url.searchParams.get('year');
         if (!year || !/^\d{4}$/.test(year) || year === '0000') return json({error:'올바른 연도가 필요합니다.'},400);
-        const result = await db.prepare("SELECT substr(t.transaction_date,1,7) AS month, t.type, c.id AS category_id, c.name AS category_name, SUM(t.amount) AS total, COUNT(*) AS count FROM transactions t JOIN categories c ON c.id=t.category_id AND c.household_id=t.household_id WHERE t.household_id=? AND t.transaction_date >= ? AND t.transaction_date <= ? GROUP BY month,t.type,c.id,c.name ORDER BY month,t.type,c.name,c.id").bind(auth.household_id,year+'-01-01',year+'-12-31').all();
+        const result = await db.prepare("SELECT substr(t.transaction_date,1,7) AS month, t.type, c.id AS category_id, c.name AS category_name, t.subject AS subject, SUM(t.amount) AS total, COUNT(*) AS count FROM transactions t JOIN categories c ON c.id=t.category_id AND c.household_id=t.household_id WHERE t.household_id=? AND t.transaction_date >= ? AND t.transaction_date <= ? GROUP BY month,t.type,c.id,c.name,t.subject ORDER BY month,t.type,c.name,c.id,t.subject").bind(auth.household_id,year+'-01-01',year+'-12-31').all();
         return json({year,groups:result.results});
       }
       if (path === '/api/transactions' && request.method === 'GET') {
         const date = url.searchParams.get('date'); if (!date || !validDate(date)) return json({error:'올바른 날짜가 필요합니다.'},400);
-        const result = await db.prepare('SELECT t.id, t.type, t.amount, t.transaction_date, t.memo, t.subject, t.payment_method, t.version, c.id AS category_id, c.name AS category_name FROM transactions t JOIN categories c ON c.id = t.category_id WHERE t.household_id = ? AND t.transaction_date = ? ORDER BY t.id DESC').bind(auth.household_id,date).all(); return json({transactions:result.results});
+        const result = await db.prepare('SELECT t.id, t.type, t.amount, t.transaction_date, t.memo, t.subject, t.version, c.id AS category_id, c.name AS category_name FROM transactions t JOIN categories c ON c.id = t.category_id WHERE t.household_id = ? AND t.transaction_date = ? ORDER BY t.id DESC').bind(auth.household_id,date).all(); return json({transactions:result.results});
       }
       if (path === '/api/calendar' && request.method === 'GET') {
         const month = url.searchParams.get('month');
@@ -159,19 +163,19 @@ export default {
         if (request.method === 'DELETE') {
           result = await db.prepare('DELETE FROM transactions WHERE id = ? AND household_id = ? AND version = ?').bind(id,auth.household_id,d.version).run();
         } else {
-          if (!['income','expense'].includes(d.type) || !Number.isSafeInteger(d.amount) || d.amount <= 0 || !Number.isSafeInteger(d.category_id) || d.category_id <= 0 || typeof d.transaction_date !== 'string' || !validDate(d.transaction_date) || (d.memo !== undefined && (typeof d.memo !== 'string' || d.memo.length > 1000)) || (d.subject != null && (typeof d.subject !== 'string' || d.subject.length > 100)) || (d.payment_method != null && (typeof d.payment_method !== 'string' || d.payment_method.length > 100))) return json({error:'거래 입력값을 확인해 주세요.'},400);
+          if (!['income','expense'].includes(d.type) || !Number.isSafeInteger(d.amount) || d.amount <= 0 || !Number.isSafeInteger(d.category_id) || d.category_id <= 0 || typeof d.transaction_date !== 'string' || !validDate(d.transaction_date) || (d.memo !== undefined && (typeof d.memo !== 'string' || d.memo.length > 1000)) || (d.subject != null && (typeof d.subject !== 'string' || d.subject.length > 100))) return json({error:'거래 입력값을 확인해 주세요.'},400);
           const category = await db.prepare('SELECT id FROM categories WHERE id = ? AND household_id = ? AND type = ? AND (is_active = 1 OR id = (SELECT category_id FROM transactions WHERE id = ? AND household_id = ?))').bind(d.category_id,auth.household_id,d.type,id,auth.household_id).first();
           if (!category) return json({error:'카테고리를 확인해 주세요.'},400);
-          result = await db.prepare("UPDATE transactions SET category_id = ?, type = ?, amount = ?, transaction_date = ?, memo = ?, subject = ?, payment_method = ?, version = version + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ? AND household_id = ? AND version = ?").bind(d.category_id,d.type,d.amount,d.transaction_date,d.memo ?? '',d.subject ?? null,d.payment_method ?? null,id,auth.household_id,d.version).run();
+          result = await db.prepare("UPDATE transactions SET category_id = ?, type = ?, amount = ?, transaction_date = ?, memo = ?, subject = ?, version = version + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ? AND household_id = ? AND version = ?").bind(d.category_id,d.type,d.amount,d.transaction_date,d.memo ?? '',d.subject ?? null,id,auth.household_id,d.version).run();
         }
         if (!result.meta.changes) return json({error:'다른 곳에서 변경된 거래입니다. 최신 내용을 다시 불러와 주세요.'},409);
         return json({ok:true});
       }
       if (path === '/api/transactions' && request.method === 'POST') {
         const d = await body(request);
-        if (!['income','expense'].includes(d.type) || !Number.isSafeInteger(d.amount) || d.amount <= 0 || !Number.isSafeInteger(d.category_id) || d.category_id <= 0 || typeof d.transaction_date !== 'string' || !validDate(d.transaction_date) || (d.memo !== undefined && (typeof d.memo !== 'string' || d.memo.length > 1000)) || (d.subject != null && (typeof d.subject !== 'string' || d.subject.length > 100)) || (d.payment_method != null && (typeof d.payment_method !== 'string' || d.payment_method.length > 100))) return json({error:'거래 입력값을 확인해 주세요.'},400);
+        if (!['income','expense'].includes(d.type) || !Number.isSafeInteger(d.amount) || d.amount <= 0 || !Number.isSafeInteger(d.category_id) || d.category_id <= 0 || typeof d.transaction_date !== 'string' || !validDate(d.transaction_date) || (d.memo !== undefined && (typeof d.memo !== 'string' || d.memo.length > 1000)) || (d.subject != null && (typeof d.subject !== 'string' || d.subject.length > 100))) return json({error:'거래 입력값을 확인해 주세요.'},400);
         const category = await db.prepare('SELECT id FROM categories WHERE id = ? AND household_id = ? AND type = ? AND is_active = 1').bind(d.category_id,auth.household_id,d.type).first(); if (!category) return json({error:'카테고리를 확인해 주세요.'},400);
-        const result = await db.prepare('INSERT INTO transactions (household_id, category_id, type, amount, transaction_date, memo, subject, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(auth.household_id,d.category_id,d.type,d.amount,d.transaction_date,d.memo ?? '',d.subject ?? null,d.payment_method ?? null).run();
+        const result = await db.prepare('INSERT INTO transactions (household_id, category_id, type, amount, transaction_date, memo, subject) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(auth.household_id,d.category_id,d.type,d.amount,d.transaction_date,d.memo ?? '',d.subject ?? null).run();
         return json({id:result.meta.last_row_id},201);
       }
       return json({error:'찾을 수 없습니다.'},404);

@@ -48,7 +48,7 @@ def convert(path):
                     categories.append({'id': category_ids[key], 'type': kind, 'name': name, 'sort_order': len(categories), 'is_active': 1})
                 # Source data does not contain creation or modification timestamps.
                 timestamp = date.isoformat() + 'T00:00:00.000Z'
-                transactions.append({'id': len(transactions)+1, 'category_id': category_ids[key], 'type': kind, 'amount': amount, 'transaction_date': date.isoformat(), 'memo': row['메모'], 'subject': row['주체'] or None, 'payment_method': row['지불 방식'] or None, 'recorded_by': row['입력자'] or None, 'source_file': row['원본파일'] or None, 'source_row': row['원본행'] or None, 'version': 1, 'created_at': timestamp, 'updated_at': timestamp})
+                transactions.append({'id': len(transactions)+1, 'category_id': category_ids[key], 'type': kind, 'amount': amount, 'transaction_date': date.isoformat(), 'memo': row['메모'], 'subject': row['주체'] or None, 'recorded_by': row['입력자'] or None, 'source_file': row['원본파일'] or None, 'source_row': row['원본행'] or None, 'version': 1, 'created_at': timestamp, 'updated_at': timestamp})
                 totals[kind] += amount
                 if totals[kind] > MAX_SAFE:
                     raise ValueError('합계가 안전한 정수 범위를 벗어났습니다.')
